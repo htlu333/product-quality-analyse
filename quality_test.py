@@ -2,9 +2,11 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 import os
 import sys
+import time
 
 def print_step(step_number, message):
     """打印步骤提示"""
+    time.sleep(0.5)
     print(f"\n=== {message} ===\n")
 
 def wait_for_enter():
@@ -16,9 +18,10 @@ def find_header_row(sheet, header_keyword="种类"):
     for row_idx, row in enumerate(sheet.iter_rows(values_only=True), 1):
         for cell_value in row:
             if cell_value and header_keyword in str(cell_value):
+                print(f"检测到表头在第 {row_idx} 行")
                 return row_idx
+    print("未找到表头，默认返回第 1 行")
     return 1
-
 
 def load_data(file_path):
     """加载Excel数据，只读取第1、3、6、8列"""
@@ -27,7 +30,6 @@ def load_data(file_path):
 
     # 查找表头行
     header_row = find_header_row(sheet)
-    print(f"检测到表头在第 {header_row} 行")
 
     data = []
     for row in sheet.iter_rows(min_row=header_row + 1, values_only=True):
@@ -92,7 +94,7 @@ def quality_ratio(data, category, process_column, values_to_count, consider_empt
     return count / total if total > 0 else 0
 
 
-def analyze_quality_data(file_path, process_configs):
+def analyze_quality_data(quality_file_path, process_configs):
     """
     分析质量数据
     参数:
@@ -103,7 +105,7 @@ def analyze_quality_data(file_path, process_configs):
         - values: 要计算的值列表
     """
     # 加载和预处理数据
-    data = load_data(file_path)
+    data = load_data(quality_file_path)
     if not data:
         print("未找到有效数据")
         return {}
