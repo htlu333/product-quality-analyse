@@ -178,7 +178,7 @@ def print_results(results, process_configs):
 
 # 主程序
 if __name__ == "__main__":
-    file_path = 'D:\或许吧.xlsx'  # 替换为您的文件路径
+    file_path = './或许吧.xlsx'  # 替换为您的文件路径
 
     # 配置每个工序的参数
     process_configs = [
