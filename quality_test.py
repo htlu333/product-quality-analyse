@@ -1,5 +1,15 @@
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
+import os
+import sys
+
+def print_step(step_number, message):
+    """打印步骤提示"""
+    print(f"\n=== {message} ===\n")
+
+def wait_for_enter():
+    """等待用户按回车继续"""
+    input("按回车键继续...")
 
 
 def find_header_row(sheet, header_keyword="种类"):
@@ -178,7 +188,43 @@ def print_results(results, process_configs):
 
 # 主程序
 if __name__ == "__main__":
-    file_path = './或许吧.xlsx'  # 替换为您的文件路径
+    print_step(1, "长晶工艺质量数据分析")
+    print("请确保Excel文件与此程序在同一文件夹中")
+    wait_for_enter()
+
+    # 查找Excel文件
+    print_step(2, "查找Excel文件")
+    excel_files = []
+    for file in os.listdir('.'):
+        if file.endswith('.xlsx') or file.endswith('.xls'):
+            excel_files.append(file)
+
+    if not excel_files:
+        print("未找到Excel文件(.xlsx或.xls)")
+        print("请将Excel文件放入与此程序相同的文件夹中")
+        input("按回车键退出...")
+        sys.exit(1)
+
+    # 如果找到多个Excel文件，让用户选择
+    if len(excel_files) > 1:
+        print_step(3, "发现多个Excel文件，请选择要分析的文件:")
+        for i, file in enumerate(excel_files, 1):
+            print(f"{i}. {file}")
+
+        while True:
+            try:
+                choice = int(input("请输入文件编号: "))
+                if 1 <= choice <= len(excel_files):
+                    file_path = excel_files[choice - 1]
+                    break
+                else:
+                    print("编号无效，请重新输入")
+            except ValueError:
+                print("请输入有效数字")
+    else:
+        file_path = excel_files[0]
+        print(f"找到文件: {file_path}")
+        wait_for_enter()
 
     # 配置每个工序的参数
     process_configs = [
@@ -199,11 +245,31 @@ if __name__ == "__main__":
         }
     ]
 
-    # 分析数据
-    results = analyze_quality_data(file_path, process_configs)
+    print_step(4, "开始分析数据")
+    print("正在读取和分析Excel文件...")
 
-    # 打印结果
-    print_results(results, process_configs)
+    try:
+        # 分析数据
+        results = analyze_quality_data(file_path, process_configs)
 
-    # 保存到Excel
-    save_results_to_excel(results, process_configs)
+        print_step(5, "分析结果")
+        # 打印结果
+        print_results(results, process_configs)
+        wait_for_enter()
+
+        print_step(6, "保存结果")
+        # 保存到Excel
+        output_file = "质量分析结果.xlsx"
+        save_results_to_excel(results, process_configs, output_file)
+
+        print_step(7, "完成")
+        print("所有操作已完成!")
+        print("您可以在同一文件夹中找到 '质量分析结果.xlsx' 文件")
+
+    except Exception as e:
+        print(f"处理过程中发生错误: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+
+    input("按回车键退出程序...")
