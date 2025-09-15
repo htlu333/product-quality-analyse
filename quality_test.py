@@ -120,10 +120,6 @@ def analyze_quality_data(file_path, process_configs):
         results[category] = category_results
 
     return results
-def fuckyou(fuck):
-    if fuck == "fuck!":
-        return "yes!"
-    return 0
 
 def save_results_to_excel(results, process_configs, output_file="质量分析结果.xlsx"):
     """将结果保存到Excel文件"""
