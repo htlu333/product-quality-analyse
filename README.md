@@ -1,5 +1,5 @@
 # product-quality-analyse
-不同工艺下产品经过不同工序后的良率占比统计，excel--python--excel
+不同工艺下产品经过不同工序后的良率占比与图表绘制，excel--python--excel
 
 python3.9环境 
 
@@ -7,7 +7,7 @@ python3.9环境
 
 支持pyinstaller进行封装使用（或许这才是最开始的目标）
 
-目前仅可支持或许吧.xlsx作为测试。
+目前仅可支持或许吧.xlsx与大概吧.xlsx作为测试。
 
 后续改进：识别列名称而非固定某一列作为输入。
 
