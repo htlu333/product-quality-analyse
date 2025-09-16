@@ -22,6 +22,18 @@ def find_header_row(sheet, header_keyword="种类"):
                 return row_idx
     print("未找到表头，默认返回第 1 行")
     return 1
+def is_valid_product_code(code):
+    """检查是否为有效的产品编码（不以#开头）"""
+    if code is None:
+        return False
+
+    code_str = str(code)
+    # 检查是否以#开头（Excel错误值通常以#开头）
+    if code_str.startswith('#'):
+        return False
+
+    return True
+
 
 def load_data(file_path):
     """加载Excel数据，只读取第1、3、6、8列"""
@@ -37,8 +49,13 @@ def load_data(file_path):
         if row[0] is None:
             continue
 
+        category = str(row[0]) if row[0] is not None else None
+
+        if not is_valid_product_code(category):
+            continue
+
         row_data = {
-            "种类": row[0],  # 第1列
+            "种类": category,  # 第1列
             "工序1品质": row[2],  # 第3列
             "工序2品质": row[5],  # 第6列
             "最终品质": row[7]  # 第8列
@@ -73,6 +90,10 @@ def quality_ratio(data, category, process_column, values_to_count, consider_empt
     values_to_count: 要计算的值列表(如["好", "一般"])
     consider_empty: 是否考虑空值
     """
+    if isinstance(category, str):
+        categories = [category]
+    else:
+        categories = category
     total = 0
     count = 0
 
@@ -92,6 +113,31 @@ def quality_ratio(data, category, process_column, values_to_count, consider_empt
                 pass
 
     return count / total if total > 0 else 0
+def group_category(categories):
+    """
+    对于问题所处的实际情况，种类一般字符长度一致，存在亚种则在基础种类添加后缀，但最终计算仍为一个种类
+    对种类进行分组，将亚种编码归类到基础编码
+    参数:
+    categoriess: 所有种类的集合
+    返回:
+    分组字典: {基础编码: [该组的所有种类]}
+    """
+    # 找出所有编码的最小长度，这应该是基础编码的长度
+    min_length = min(len(code) for code in categories) if categories else 0
+
+    groups = {}
+
+    for code in categories:
+        # 提取基础编码部分（前min_length个字符）
+        base_code = code[:min_length]
+
+        if base_code not in groups:
+            groups[base_code] = []
+
+        groups[base_code].append(code)
+
+    return groups
+
 
 
 def analyze_quality_data(quality_file_path, process_configs):
@@ -118,18 +164,18 @@ def analyze_quality_data(quality_file_path, process_configs):
         category = item.get("种类")
         if category is not None:
             categories.add(category)
-
+    category_groups = group_category(categories)
     results = {}
 
-    for category in categories:
-        category_results = {}
+    for base_code, code_list in category_groups.items():
+        group_results = {}
 
         # 为每个工序配置计算占比
         for config in process_configs:
             ratio = quality_ratio(data, category, config["column"], config["values"])
-            category_results[config["name"]] = ratio
+            group_results[config["name"]] = ratio
 
-        results[category] = category_results
+        results[base_code] = group_results
 
     return results
 
