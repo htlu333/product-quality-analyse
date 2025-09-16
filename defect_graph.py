@@ -17,11 +17,11 @@ def wait_for_enter():
     """等待用户按回车继续"""
     input("按回车键继续...")
 
-def find_header_row(sheet, header_keyword="产品编码"):
+def find_header_row(sheet, header_keyword="片号"):
     for row_idx, row in enumerate(sheet.iter_rows(values_only=True), 1):
         # 确保行至少有3列，然后检查第三列（索引2）
-        if len(row) > 2 and row[2] is not None:
-            if header_keyword in str(row[2]):
+        if row[0] is not None:
+            if header_keyword in str(row[0]):
                 print(f"检测到表头在第 {row_idx} 行")
                 return row_idx
     print("未找到表头，默认返回第 1 行")
@@ -74,7 +74,7 @@ def analyze_defect_data(graph_data):
     字典，键为工序名，值为缺陷统计Counter对象
     """
     # 定义要分析的工序列
-    process_columns = ["这个缺陷", "哪个缺陷", "就是缺陷"]
+    process_columns = ["这个缺陷", "哪个缺陷", "就是这个缺陷"]
 
     defect_stats = {}
 
@@ -163,8 +163,7 @@ def save_results_to_excel(defect_stats, output_file="工序缺陷统计.xlsx"):
     """将结果保存到Excel文件"""
     # 创建新的工作簿
     workbook = openpyxl.Workbook()
-    sheet = workbook.active
-    sheet.title = "缺陷分布饼图"
+
 
     # 如果有缺陷数据，添加饼图
     if defect_stats:
