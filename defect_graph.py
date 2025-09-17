@@ -55,15 +55,41 @@ def load_graph_data(file_path):
             continue
 
         row_data = {
+            "种类": row[1],
             "片号": slice_code,
-            "这个缺陷": row[1],
-            "哪个缺陷": row[2],
-            "就是这个缺陷": row[3],
+            "这个缺陷": row[2],
+            "哪个缺陷": row[3],
+            "就是这个缺陷": row[4],
 
         }
         data.append(row_data)
 
     return data
+
+def group_product_codes(product_codes):
+    """
+    对产品编码进行分组，将亚种编码归类到基础编码
+    参数:
+    product_codes: 所有产品编码的集合
+    返回:
+    分组字典: {基础编码: [该组的所有编码]}
+    """
+    # 找出所有编码的最小长度，这应该是基础编码的长度
+    min_length = min(len(code) for code in product_codes) if product_codes else 0
+
+    groups = {}
+
+    for code in product_codes:
+        # 提取基础编码部分（前min_length个字符）
+        base_code = code[:min_length]
+
+        if base_code not in groups:
+            groups[base_code] = []
+
+        groups[base_code].append(code)
+
+    return groups
+
 
 def analyze_defect_data(graph_data):
     """
@@ -93,54 +119,93 @@ def analyze_defect_data(graph_data):
     return defect_stats
 
 
-def create_pie_charts(workbook, defect_stats):
+def create_pie_charts_for_group(workbook, group_name, defect_stats):
     """
-    创建饼图并添加到工作簿
+    为单个产品编码分组创建饼图并添加到工作簿
     参数:
     workbook: openpyxl工作簿对象
+    group_name: 分组名称
     defect_stats: 缺陷统计字典
     """
-    # 为每个工序创建一个工作表并添加饼图
+    # 创建工作表
+    sheet_name = f"{group_name}缺陷分析"
+    if sheet_name in workbook.sheetnames:
+        # 如果已存在，则删除原有工作表
+        del workbook[sheet_name]
+    ws = workbook.create_sheet(title=sheet_name)
+
+    # 添加表头
+    ws['A1'] = "缺陷类型"
+    ws['B1'] = "数量"
+    ws['C1'] = "占比"
+
+    # 设置表头样式
+    for cell in ['A1', 'B1', 'C1']:
+        ws[cell].font = Font(bold=True)
+        ws[cell].fill = PatternFill(start_color="DDDDDD", end_color="DDDDDD", fill_type="solid")
+
+    # 添加数据
+    total_count = sum(sum(counter.values()) for counter in defect_stats.values())
+    row = 2
+
+    # 记录每个工序的数据范围
+    process_ranges = {}
+
     for process_name, counter in defect_stats.items():
-        # 创建工作表
-        sheet_name = f"{process_name}缺陷分析"
-        if sheet_name in workbook.sheetnames:
-            # 如果已存在，则删除原有工作表
-            del workbook[sheet_name]
-        ws = workbook.create_sheet(title=sheet_name)
+        # 添加工序标题
+        ws[f'A{row}'] = f"{process_name}"
+        ws[f'A{row}'].font = Font(bold=True, color="FF0000")
+        row += 1
 
-        # 添加表头
-        ws['A1'] = "缺陷类型"
-        ws['B1'] = "数量"
-        ws['C1'] = "占比"
+        # 记录工序数据开始行
+        process_start = row
 
-        # 设置表头样式
-        for cell in ['A1', 'B1', 'C1']:
-            ws[cell].font = Font(bold=True)
-            ws[cell].fill = PatternFill(start_color="DDDDDD", end_color="DDDDDD", fill_type="solid")
-
-        # 添加数据
-        total_count = sum(counter.values())
-        row = 2
+        process_total = sum(counter.values())
         for defect_type, count in counter.most_common():
             ws[f'A{row}'] = defect_type
             ws[f'B{row}'] = count
-            ws[f'C{row}'] = count / total_count
+            ws[f'C{row}'] = count / process_total if process_total > 0 else 0
             row += 1
 
-        # 设置百分比格式
-        for r in range(2, row):
+        # 记录工序数据结束行
+        process_end = row - 1
+        process_ranges[process_name] = (process_start, process_end)
+
+        # 添加空行分隔不同工序
+        row += 1
+
+    # 设置百分比格式
+    for r in range(2, row):
+        if ws[f'C{r}'].value is not None:
             ws[f'C{r}'].number_format = '0.00%'
+
+    # 为每个工序创建饼图
+    chart_row = 2
+    chart_col = 5  # 从E列开始放置图表
+
+    for process_name, counter in defect_stats.items():
+        if not counter:  # 跳过空数据
+            continue
+
+        # 获取工序数据范围
+        if process_name not in process_ranges:
+            continue
+
+        data_start, data_end = process_ranges[process_name]
+
+        # 如果没有有效数据，跳过
+        if data_start > data_end:
+            continue
 
         # 创建饼图
         chart = PieChart()
-        chart.title = f"{process_name}缺陷分布"
+        chart.title = f"{group_name}-{process_name}缺陷分布"
 
         # 设置数据范围
-        labels = Reference(ws, min_col=1, min_row=2, max_row=row - 1)
-        data = Reference(ws, min_col=2, min_row=1, max_row=row - 1)
+        labels = Reference(ws, min_col=1, min_row=data_start, max_row=data_end)
+        data = Reference(ws, min_col=2, min_row=data_start, max_row=data_end)
 
-        chart.add_data(data, titles_from_data=True)
+        chart.add_data(data, titles_from_data=False)
         chart.set_categories(labels)
 
         # 设置图表样式
@@ -151,23 +216,58 @@ def create_pie_charts(workbook, defect_stats):
         chart.dataLabels.showCatName = True
 
         # 将图表添加到工作表
-        ws.add_chart(chart, "E2")
+        ws.add_chart(chart, f"{openpyxl.utils.get_column_letter(chart_col)}{chart_row}")
 
-        # 调整列宽
-        ws.column_dimensions['A'].width = 20
-        ws.column_dimensions['B'].width = 10
-        ws.column_dimensions['C'].width = 10
+        # 更新下一个图表位置
+        chart_col += 8  # 每个图表占8列宽度
+        if chart_col > 20:  # 如果超出Z列，换到下一行
+            chart_col = 5
+            chart_row += 20
+
+    # 调整列宽
+    ws.column_dimensions['A'].width = 20
+    ws.column_dimensions['B'].width = 10
+    ws.column_dimensions['C'].width = 10
 
 
-def save_results_to_excel(defect_stats, output_file="工序缺陷统计.xlsx"):
-    """将结果保存到Excel文件"""
+
+def save_grouped_results_to_excel(grouped_data, output_file="工序缺陷统计.xlsx"):
+    """将分组结果保存到Excel文件"""
     # 创建新的工作簿
     workbook = openpyxl.Workbook()
 
+    # 删除默认创建的工作表
+    if "Sheet" in workbook.sheetnames:
+        del workbook["Sheet"]
 
-    # 如果有缺陷数据，添加饼图
-    if defect_stats:
-        create_pie_charts(workbook, defect_stats)
+    # 为每个分组创建工作表并添加饼图
+    for group_name, data in grouped_data.items():
+        defect_stats = analyze_defect_data(data)
+        create_pie_charts_for_group(workbook, group_name, defect_stats)
+
+    # 创建汇总工作表
+    summary_sheet = workbook.create_sheet(title="汇总")
+    summary_sheet['A1'] = "产品分组"
+    summary_sheet['B1'] = "数据条数"
+    summary_sheet['C1'] = "包含的产品编码"
+
+    # 设置表头样式
+    for cell in ['A1', 'B1', 'C1']:
+        summary_sheet[cell].font = Font(bold=True)
+        summary_sheet[cell].fill = PatternFill(start_color="DDDDDD", end_color="DDDDDD", fill_type="solid")
+
+    # 添加汇总数据
+    row = 2
+    for group_name, data in grouped_data.items():
+        summary_sheet[f'A{row}'] = group_name
+        summary_sheet[f'B{row}'] = len(data)
+        summary_sheet[f'C{row}'] = ", ".join(set([item["种类"] for item in data]))
+        row += 1
+
+    # 调整列宽
+    summary_sheet.column_dimensions['A'].width = 15
+    summary_sheet.column_dimensions['B'].width = 10
+    summary_sheet.column_dimensions['C'].width = 40
 
     # 保存文件
     workbook.save(output_file)
@@ -176,7 +276,7 @@ def save_results_to_excel(defect_stats, output_file="工序缺陷统计.xlsx"):
 
 # 主程序
 if __name__ == "__main__":
-    print_step(1, "长晶工艺缺陷分布")
+    print_step(1, "工艺缺陷分布")
     print("请确保Excel文件与此程序在同一文件夹中")
     wait_for_enter()
 
@@ -214,26 +314,37 @@ if __name__ == "__main__":
         print(f"找到文件: {file_path}")
         wait_for_enter()
 
-
     print_step(4, "开始分析数据")
     print("正在读取和分析Excel文件...")
 
     try:
-
-        # 分析缺陷数据
-        print_step(6, "分析缺陷数据")
+        # 加载数据
         graph_data = load_graph_data(file_path)
-        defect_stats = analyze_defect_data(graph_data)
 
-        print_step(7, "保存结果")
+        # 提取所有产品编码
+        all_product_codes = set(item["种类"] for item in graph_data)
+        print(f"找到 {len(all_product_codes)} 个不同的种类")
+        groups = group_product_codes(all_product_codes)
+        print(f"产品编码被分为 {len(groups)} 个组")
+
+        # 按分组组织数据
+        grouped_data = {}
+        for group_name, product_codes in groups.items():
+            grouped_data[group_name] = [
+                item for item in graph_data
+                if item["种类"] in product_codes
+            ]
+            print(f"分组 '{group_name}' 包含 {len(grouped_data[group_name])} 条数据")
+
+        print_step(6, "分析缺陷数据")
         # 保存到Excel
         output_file = "工序缺陷统计.xlsx"
-        save_results_to_excel(defect_stats, output_file)
+        save_grouped_results_to_excel(grouped_data, output_file)
 
-        print_step(8, "完成")
+        print_step(7, "完成")
         print("所有操作已完成!")
         print("您可以在同一文件夹中找到 '工序缺陷统计.xlsx' 文件")
-        print("文件中包含了各工序缺陷的饼图分析")
+        print("文件中包含了各产品分组的缺陷分析饼图")
 
     except Exception as e:
         print(f"处理过程中发生错误: {str(e)}")
